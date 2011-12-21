@@ -3,13 +3,10 @@ from django.db.models.loading import get_model
 
 from haystack import indexes
 from haystack import site
+from haystack.utils import get_identifier
 
-from tasks import SearchIndexUpdateTask
+from tasks import search_index_update, search_index_delete
 
-def remove_instance_from_index(instance):
-    model_class = get_model(instance._meta.app_label, instance._meta.module_name)
-    search_index = site.get_index(model_class)
-    search_index.remove_object(instance)
 
 class QueuedSearchIndex(indexes.SearchIndex):
     """
@@ -32,7 +29,7 @@ class QueuedSearchIndex(indexes.SearchIndex):
         signals.post_delete.disconnect(self.enqueue_delete, sender=model)
 
     def enqueue_save(self, instance, **kwargs):
-        SearchIndexUpdateTask.delay(instance._meta.app_label, instance._meta.module_name, instance._get_pk_val())
+        search_index_update.delay(instance._meta.app_label, instance._meta.module_name, instance._get_pk_val())
 
     def enqueue_delete(self, instance, **kwargs):
-        remove_instance_from_index(instance)
+        search_index_delete.delay(instance._meta.app_label, instance._meta.module_name, get_identifier(instance))
